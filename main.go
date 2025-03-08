@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -17,19 +18,35 @@ func checkWebsite(url string, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	resp, err := http.Get(url)
-
+	// 1. reading the file to log the output
+	file, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Println(url, " ❌  Website is down", time.Now())
+		fmt.Println("Error opening file:", err)
 		return
 	}
+	defer file.Close()
 
-	defer resp.Body.Close()
+	// 2. checking the url
+	resp, err := http.Get(url)
 
-	if resp.StatusCode == 200 {
-		fmt.Println(url, "✅  website is up", time.Now())
+	var logMessage string
+
+	if err != nil {
+		logMessage = fmt.Sprintf("%s ❌  Website is down [%s]\n", url, time.Now().Format(time.RFC1123))
 	} else {
-		fmt.Println(url, "⚠️  website status is ", resp.StatusCode, time.Now())
+		defer resp.Body.Close()
+		if resp.StatusCode == 200 {
+			logMessage = fmt.Sprintf("%s ✅  Website is up [%s]\n", url, time.Now().Format(time.RFC1123))
+		} else {
+			logMessage = fmt.Sprintf("%s ⚠️  website status is: %d [%s]", url, resp.StatusCode, time.Now().Format(time.RFC1123))
+		}
+	}
+
+	fmt.Println(logMessage)
+
+	// 3. saving the output to the log file
+	if _, err := file.WriteString(logMessage); err != nil {
+		fmt.Println("Error writing to file:", err)
 	}
 }
 
