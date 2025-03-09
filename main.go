@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/smtp"
 	"os"
 	"sync"
 	"time"
@@ -12,6 +13,30 @@ var websites = []string{
 	"https://google.com",
 	"https://facebook.com",
 	"https://1212121212111212122.org",
+}
+
+// app password need to be generated from https://myaccount.google.com/apppasswords
+const (
+	smtpServer = "smtp.gmail.com"
+	smtpPort   = "587"
+	sender     = "PUT_YOUR_EMAIL_HERE"
+	password   = "PUT_THE_APP_PASSWORD_HERE "
+	receiver   = "PUT_THE_RECEIVER_EMAIL_HERE"
+)
+
+func sendEmail(site string) {
+	subject := "Website Down Alert"
+	body := fmt.Sprintf("The website %s is down. %s", site, time.Now().Format(time.RFC1123))
+	message := fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, body)
+
+	auth := smtp.PlainAuth("", sender, password, smtpServer)
+	err := smtp.SendMail(smtpServer+":"+smtpPort, auth, sender, []string{receiver}, []byte(message))
+
+	if err != nil {
+		fmt.Println("Error sending email:", err)
+	} else {
+		fmt.Println("📧 Alert email sent")
+	}
 }
 
 func checkWebsite(url string, wg *sync.WaitGroup) {
@@ -33,6 +58,7 @@ func checkWebsite(url string, wg *sync.WaitGroup) {
 
 	if err != nil {
 		logMessage = fmt.Sprintf("%s ❌  Website is down [%s]\n", url, time.Now().Format(time.RFC1123))
+		sendEmail(url)
 	} else {
 		defer resp.Body.Close()
 		if resp.StatusCode == 200 {
