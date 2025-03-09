@@ -1,0 +1,13 @@
+websites:
+  - "https://google.com"
+  - "https://facebook.com"
+  - "https://1212121212111212122.org"
+
+check_interval: 30s
+
+email:
+  smtpServer: "smtp.gmail.com"
+  smtpPort: "587"
+  sender: "murtadhabg@gmail.com"
+  password: "udgbujilpmtehtpf "
+  receiver: "murtadhabg@gmail.com"
