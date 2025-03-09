@@ -1,13 +1,10 @@
 websites:
-  - "https://google.com"
-  - "https://facebook.com"
-  - "https://1212121212111212122.org"
-
-check_interval: 30s
-
+  - "https://example1.com"
+  - "https://example2.com"
+check_interval: 1m
 email:
-  smtpServer: "smtp.gmail.com"
+  smtpServer: "smtp.example.com"
   smtpPort: "587"
-  sender: "murtadhabg@gmail.com"
-  password: "udgbujilpmtehtpf "
-  receiver: "murtadhabg@gmail.com"
+  sender: "your-email@example.com"
+  password: "your-email-password"
+  receiver: "recipient-email@example.com"
