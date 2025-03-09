@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"net/http"
 	"net/smtp"
 	"os"
@@ -9,20 +10,27 @@ import (
 	"time"
 )
 
-var websites = []string{
-	"https://google.com",
-	"https://facebook.com",
-	"https://1212121212111212122.org",
+type Config struct {
+	Websites      []string      `yaml:"websites`
+	CheckInterval time.Duration `yaml:"check_interval"`
+	Email         struct {
+		SMTPServer string `yaml:"smtpServer"`
+		SMTPPort   string `yaml:"smtpPort"`
+		Sender     string `yaml:"sender"`
+		Password   string `yaml:"password"`
+		Receiver   string `yaml:"receiver"`
+	} `yaml:"email"`
 }
 
-// app password need to be generated from https://myaccount.google.com/apppasswords
-const (
-	smtpServer = "smtp.gmail.com"
-	smtpPort   = "587"
-	sender     = "murtadhabg@gmail.com"
-	password   = "udgbujilpmtehtpf "
-	receiver   = "murtadhabg@gmail.com"
-)
+var config Config
+
+func loadConfig() error {
+	file, err := os.ReadFile("config.yaml")
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(file, &config)
+}
 
 var downSince = make(map[string]time.Time)
 
@@ -31,8 +39,8 @@ func sendEmail(site string, downtimeDuration time.Duration) {
 	body := fmt.Sprintf("The website %s is down. %s\n Down since: %v", site, time.Now().Format(time.RFC1123), downtimeDuration)
 	message := fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, body)
 
-	auth := smtp.PlainAuth("", sender, password, smtpServer)
-	err := smtp.SendMail(smtpServer+":"+smtpPort, auth, sender, []string{receiver}, []byte(message))
+	auth := smtp.PlainAuth("", config.Email.Sender, config.Email.Password, config.Email.SMTPServer)
+	err := smtp.SendMail(config.Email.SMTPServer+":"+config.Email.SMTPPort, auth, config.Email.Sender, []string{config.Email.Receiver}, []byte(message))
 
 	if err != nil {
 		fmt.Println("Error sending email:", err)
@@ -88,17 +96,22 @@ func checkWebsite(url string, wg *sync.WaitGroup) {
 }
 
 func main() {
-	interval := 30 * time.Second
+	err := loadConfig()
+
+	if err != nil {
+		fmt.Println("Error loading config:", err)
+		return
+	}
 
 	for {
 		fmt.Println("\n --- Checking websites...")
 		var wg sync.WaitGroup
-		for _, url := range websites {
+		for _, url := range config.Websites {
 			wg.Add(1)
 			go checkWebsite(url, &wg)
 		}
 		wg.Wait()
 		fmt.Println("--- Waiting for the next check ... ---")
-		time.Sleep(interval)
+		time.Sleep(config.CheckInterval)
 	}
 }
