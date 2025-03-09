@@ -1,7 +1,10 @@
 package main
 
 import (
+	"database/sql"
+	"encoding/json"
 	"fmt"
+	_ "github.com/mattn/go-sqlite3"
 	"gopkg.in/yaml.v3"
 	"net/http"
 	"net/smtp"
@@ -32,6 +35,27 @@ func loadConfig() error {
 	return yaml.Unmarshal(file, &config)
 }
 
+var db *sql.DB
+
+func initDB() error {
+	var err error
+	db, err = sql.Open("sqlite3", "monitor.db")
+	if err != nil {
+		return err
+	}
+	query := `
+	CREATE TABLE IF NOT EXISTS logs (
+    	id INTEGER PRIMARY KEY AUTOINCREMENT,
+    	website TEXT,
+    	status TEXT,
+    	response_time TEXT,
+    	timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`
+
+	_, err = db.Exec(query)
+	return err
+}
+
 var downSince = make(map[string]time.Time)
 
 func sendEmail(site string, downtimeDuration time.Duration) {
@@ -53,46 +77,75 @@ func checkWebsite(url string, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	// 1. reading the file to log the output
-	file, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
-	}
-	defer file.Close()
-
-	// 2. checking the url
+	// checking the url
 	start := time.Now()
 	resp, err := http.Get(url)
 	elapsed := time.Since(start)
 
-	var logMessage string
+	var status string
 
 	if err != nil {
 		if _, exist := downSince[url]; !exist {
 			downSince[url] = time.Now()
 		}
-		downtimeDuration := time.Since(downSince[url])
-		logMessage = fmt.Sprintf("%s ❌  Website is down [%s] - Was down for: %v\n", url, time.Now().Format(time.RFC1123), downtimeDuration)
-		sendEmail(url, downtimeDuration)
+		status = "DOWN"
+		sendEmail(url, time.Since(downSince[url]))
+
 	} else {
 		defer resp.Body.Close()
 		if resp.StatusCode == 200 {
 			if _, exist := downSince[url]; exist {
 				delete(downSince, url)
+
 			}
-			logMessage = fmt.Sprintf("%s ✅  Website is up [%s] - Response time: %v\n", url, time.Now().Format(time.RFC1123), elapsed)
+			status = "UP"
+			delete(downSince, url)
 		} else {
-			logMessage = fmt.Sprintf("%s ⚠️  website status is: %d [%s] - Response time: %v\n", url, resp.StatusCode, time.Now().Format(time.RFC1123), elapsed)
+			status = fmt.Sprintf("Status %d", resp.StatusCode)
 		}
 	}
 
-	fmt.Println(logMessage)
+	_, err = db.Exec("INSERT INTO logs (website, status, response_time) VALUES (?, ?, ?)", url, status, elapsed.Milliseconds())
+}
 
-	// 3. saving the output to the log file
-	if _, err := file.WriteString(logMessage); err != nil {
-		fmt.Println("Error writing to file:", err)
+func startServer() {
+	http.HandleFunc("/logs", getLogs)
+	fmt.Println("REST API running on port : 8080")
+	http.ListenAndServe(":8080", nil)
+}
+
+func getLogs(w http.ResponseWriter, r *http.Request) {
+	query := `
+	        SELECT website, status, response_time, timestamp
+			FROM logs
+			ORDER BY timestamp DESC
+			LIMIT 10
+	`
+	rows, err := db.Query(query)
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
 	}
+
+	defer rows.Close()
+
+	type Log struct {
+		Website      string `json:"website"`
+		Status       string `json:"status"`
+		ResponseTime string `json:"response_time"`
+		Timestamp    string `json:"timestamp"`
+	}
+
+	var logs []Log
+
+	for rows.Next() {
+		var log Log
+		rows.Scan(&log.Website, &log.Status, &log.ResponseTime, &log.Timestamp)
+		logs = append(logs, log)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(logs)
 }
 
 func main() {
@@ -102,6 +155,16 @@ func main() {
 		fmt.Println("Error loading config:", err)
 		return
 	}
+
+	err = initDB()
+	if err != nil {
+		fmt.Println("Error initializing database:", err)
+		return
+	}
+
+	defer db.Close()
+
+	go startServer()
 
 	for {
 		fmt.Println("\n --- Checking websites...")
