@@ -24,9 +24,11 @@ const (
 	receiver   = "murtadhabg@gmail.com"
 )
 
-func sendEmail(site string) {
+var downSince = make(map[string]time.Time)
+
+func sendEmail(site string, downtimeDuration time.Duration) {
 	subject := "Website Down Alert"
-	body := fmt.Sprintf("The website %s is down. %s", site, time.Now().Format(time.RFC1123))
+	body := fmt.Sprintf("The website %s is down. %s\n Down since: %v", site, time.Now().Format(time.RFC1123), downtimeDuration)
 	message := fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, body)
 
 	auth := smtp.PlainAuth("", sender, password, smtpServer)
@@ -59,11 +61,18 @@ func checkWebsite(url string, wg *sync.WaitGroup) {
 	var logMessage string
 
 	if err != nil {
-		logMessage = fmt.Sprintf("%s ❌  Website is down [%s]\n", url, time.Now().Format(time.RFC1123))
-		sendEmail(url)
+		if _, exist := downSince[url]; !exist {
+			downSince[url] = time.Now()
+		}
+		downtimeDuration := time.Since(downSince[url])
+		logMessage = fmt.Sprintf("%s ❌  Website is down [%s] - Was down for: %v\n", url, time.Now().Format(time.RFC1123), downtimeDuration)
+		sendEmail(url, downtimeDuration)
 	} else {
 		defer resp.Body.Close()
 		if resp.StatusCode == 200 {
+			if _, exist := downSince[url]; exist {
+				delete(downSince, url)
+			}
 			logMessage = fmt.Sprintf("%s ✅  Website is up [%s] - Response time: %v\n", url, time.Now().Format(time.RFC1123), elapsed)
 		} else {
 			logMessage = fmt.Sprintf("%s ⚠️  website status is: %d [%s] - Response time: %v\n", url, resp.StatusCode, time.Now().Format(time.RFC1123), elapsed)

@@ -5,7 +5,7 @@
 ****2. checkWebsite()****
 - This function is used to check the status of a website.
 - It creates a log file log.txt (if it doesn't exist) and write the logs to it.
-- This function is called in the main() function, and it is run using goroutines go checkWebsite(url, &wg) and also has
+- This function is called in the main() function, and it is run using goroutines (go checkWebsite(url, &wg)) and also has
 the wait group wg *sync.WaitGroup to wait for the goroutines to finish.
 - This line:
 ```shell
