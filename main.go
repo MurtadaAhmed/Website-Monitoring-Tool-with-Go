@@ -19,9 +19,9 @@ var websites = []string{
 const (
 	smtpServer = "smtp.gmail.com"
 	smtpPort   = "587"
-	sender     = "PUT_YOUR_EMAIL_HERE"
-	password   = "PUT_THE_APP_PASSWORD_HERE "
-	receiver   = "PUT_THE_RECEIVER_EMAIL_HERE"
+	sender     = "murtadhabg@gmail.com"
+	password   = "udgbujilpmtehtpf "
+	receiver   = "murtadhabg@gmail.com"
 )
 
 func sendEmail(site string) {
@@ -52,7 +52,9 @@ func checkWebsite(url string, wg *sync.WaitGroup) {
 	defer file.Close()
 
 	// 2. checking the url
+	start := time.Now()
 	resp, err := http.Get(url)
+	elapsed := time.Since(start)
 
 	var logMessage string
 
@@ -62,9 +64,9 @@ func checkWebsite(url string, wg *sync.WaitGroup) {
 	} else {
 		defer resp.Body.Close()
 		if resp.StatusCode == 200 {
-			logMessage = fmt.Sprintf("%s ✅  Website is up [%s]\n", url, time.Now().Format(time.RFC1123))
+			logMessage = fmt.Sprintf("%s ✅  Website is up [%s] - Response time: %v\n", url, time.Now().Format(time.RFC1123), elapsed)
 		} else {
-			logMessage = fmt.Sprintf("%s ⚠️  website status is: %d [%s]", url, resp.StatusCode, time.Now().Format(time.RFC1123))
+			logMessage = fmt.Sprintf("%s ⚠️  website status is: %d [%s] - Response time: %v\n", url, resp.StatusCode, time.Now().Format(time.RFC1123), elapsed)
 		}
 	}
 
